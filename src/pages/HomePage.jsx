@@ -2,18 +2,26 @@
  * HomePage.jsx — owns animation + WebCodecs MP4 export state.
  */
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import HeroSection       from '../components/HeroSection';
-import HowItWorks        from '../components/HowItWorks';
-import UploadArea        from '../components/UploadArea';
-import CanvasPreview     from '../components/CanvasPreview';
-import AnimationControls from '../components/AnimationControls';
-import DownloadBar       from '../components/DownloadBar';
-import Footer            from '../components/Footer';
-import { exportToMP4 }   from '../utils/mp4Export';
+import HeroSection            from '../components/HeroSection';
+import HowItWorks             from '../components/HowItWorks';
+import UploadArea             from '../components/UploadArea';
+import CanvasPreview          from '../components/CanvasPreview';
+import AnimationControls      from '../components/AnimationControls';
+import DownloadBar            from '../components/DownloadBar';
+import Footer                 from '../components/Footer';
+import VideoConverterSection  from '../components/VideoConverterSection';
+import { exportToMP4 }        from '../utils/mp4Export';
 import { convertToSketch, generateInkPixels } from '../utils/sketchUtils';
 
+// ── Tab definitions ────────────────────────────────────────────────────────
+const TABS = [
+  { id: 'image', icon: '🖼️', label: 'Image Painter' },
+  { id: 'video', icon: '🎬', label: 'Video Converter' },
+];
+
 const HomePage = () => {
-  const canvasRef = useRef(null);
+  const canvasRef  = useRef(null);
+  const [activeTab, setActiveTab] = useState('image');
 
   const [images,             setImages]             = useState([]);
   const [activeIndex,        setActiveIndex]        = useState(-1);
@@ -312,6 +320,55 @@ const HomePage = () => {
     <>
       <main className="bg-grid" style={{ minHeight: '100vh', padding: '0 16px 40px' }}>
         <HeroSection />
+
+        {/* ── Tab Switcher ── */}
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 16px 0' }}>
+          <div
+            style={{
+              display: 'inline-flex',
+              background: 'rgba(255,255,255,0.03)',
+              border: '1px solid var(--border-glass)',
+              borderRadius: '16px',
+              padding: '5px',
+              gap: '4px',
+            }}
+          >
+            {TABS.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                style={{
+                  padding: '10px 28px',
+                  fontSize: '0.88rem',
+                  fontWeight: 700,
+                  borderRadius: '12px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  transition: 'all 0.25s ease',
+                  background: activeTab === tab.id
+                    ? 'linear-gradient(135deg, var(--accent), #7c3aed)'
+                    : 'transparent',
+                  color: activeTab === tab.id ? '#fff' : 'var(--text-muted)',
+                  boxShadow: activeTab === tab.id ? '0 4px 16px var(--accent-glow)' : 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '7px',
+                }}
+              >
+                {tab.icon} {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        {/* ── Video Converter Tab ── */}
+        {activeTab === 'video' && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '28px', maxWidth: '780px', margin: '0 auto', paddingTop: '28px' }}>
+            <VideoConverterSection />
+          </div>
+        )}
+
+        {/* ── Image Painter Tab ── */}
+        {activeTab === 'image' && (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '28px', maxWidth: '780px', margin: '0 auto' }}>
 
           {images.length === 0 && (
@@ -699,6 +756,7 @@ const HomePage = () => {
             </p>
           )}
         </div>
+        )}
       </main>
       <Footer />
     </>
