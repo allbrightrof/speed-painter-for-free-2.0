@@ -1,9 +1,5 @@
-/**
- * CanvasPreview.jsx
- * Ink-pixel animation player with support for dynamic dimensions and themes.
- */
 import React, { useRef, useEffect, useCallback, useState, forwardRef, useImperativeHandle } from 'react';
-import { fitImage } from '../utils/sketchUtils';
+import { fitImage, drawTextHook } from '../utils/sketchUtils';
 import HandCursor from './HandCursor';
 
 const CanvasPreview = forwardRef(({
@@ -12,13 +8,21 @@ const CanvasPreview = forwardRef(({
   paperColor = '#fef8f0', pencilColor = '#1a0a02',
   colorRevealEnabled = true,
   onReady, onProgress, onCommandConsumed,
+  teaserStyle = 'none', teaserDuration = 1.0,
+  hookTextEnabled = false, hookText = '',
+  hookTextPosition = 'top', hookTextDuration = 2.0,
+  speedCurve = 'linear',
 }, ref) => {
-  const canvasRef    = useRef(null);
-  const rafRef       = useRef(null);
-  const pixelsRef    = useRef([]);
-  const currentRef   = useRef(0);
-  const isPlayingRef = useRef(false);
-  const revealStartRef = useRef(null);
+  const canvasRef            = useRef(null);
+  const offscreenCanvasRef   = useRef(null);
+  const rafRef               = useRef(null);
+  const pixelsRef            = useRef([]);
+  const currentRef           = useRef(0);
+  const isPlayingRef         = useRef(false);
+  const accumulatedTimeRef   = useRef(0);
+  const lastFrameTimeRef     = useRef(0);
+  const drawingInitializedRef = useRef(false);
+  const baseImgDrawnRef      = useRef(false);
 
   const [pencilPos, setPencilPos]         = useState({ x: 0, y: 0 });
   const [pencilVisible, setPencilVisible] = useState(false);
@@ -40,30 +44,50 @@ const CanvasPreview = forwardRef(({
 
   const clearCanvas = useCallback(() => {
     const ctx = canvasRef.current?.getContext('2d');
-    if (!ctx) return;
-    ctx.fillStyle = paperColor;
-    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+    if (ctx) {
+      ctx.fillStyle = paperColor;
+      ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+    }
+    if (offscreenCanvasRef.current) {
+      const oCtx = offscreenCanvasRef.current.getContext('2d');
+      oCtx.fillStyle = paperColor;
+      oCtx.fillRect(0, 0, canvasWidth, canvasHeight);
+    }
   }, [paperColor, canvasWidth, canvasHeight]);
 
   // ── Process uploaded image ────────────────────────────────────────────────
   useEffect(() => {
     if (!image || !pixels) return;
     cancelAnimationFrame(rafRef.current);
-    isPlayingRef.current = false;
-    currentRef.current   = 0;
-    revealStartRef.current = null;
+    isPlayingRef.current         = false;
+    currentRef.current           = 0;
+    accumulatedTimeRef.current   = 0;
+    lastFrameTimeRef.current     = 0;
+    drawingInitializedRef.current = false;
+    baseImgDrawnRef.current      = false;
     setPencilVisible(false);
 
     const canvas = canvasRef.current;
     if (!canvas) return;
     canvas.width  = canvasWidth;
     canvas.height = canvasHeight;
+
+    // Initialize offscreen canvas
+    if (!offscreenCanvasRef.current) {
+      offscreenCanvasRef.current = document.createElement('canvas');
+    }
+    offscreenCanvasRef.current.width  = canvasWidth;
+    offscreenCanvasRef.current.height = canvasHeight;
+    const oCtx = offscreenCanvasRef.current.getContext('2d');
+    oCtx.fillStyle = paperColor;
+    oCtx.fillRect(0, 0, canvasWidth, canvasHeight);
+
     pixelsRef.current  = pixels;
     currentRef.current = 0;
     clearCanvas();
     onReady();
     onProgress(0);
-  }, [image, pixels, canvasWidth, canvasHeight, clearCanvas]); // eslint-disable-line
+  }, [image, pixels, canvasWidth, canvasHeight, clearCanvas, paperColor]); // eslint-disable-line
 
   // ── Animation loop (play/pause mode) ─────────────────────────────────────
   const animate = useCallback(() => {
@@ -76,53 +100,123 @@ const CanvasPreview = forwardRef(({
     const total      = pixels.length;
     if (total === 0) return;
 
-    const drawRatio = colorRevealEnabled ? 0.8 : 1.0;
+    // Game loop timing updates
+    const now = performance.now();
+    const dt = (now - lastFrameTimeRef.current) / 1000;
+    lastFrameTimeRef.current = now;
+    accumulatedTimeRef.current += dt;
+    const elapsed = accumulatedTimeRef.current;
+
     const targetSec  = Math.max(0.8, 11 - speed);
+    const teaserVal  = teaserStyle !== 'none' ? teaserDuration : 0;
+    const drawRatio  = colorRevealEnabled ? 0.8 : 1.0;
+    const drawSec    = targetSec * drawRatio;
+    const revealSec  = targetSec * (1.0 - drawRatio);
+    const totalDuration = teaserVal + drawSec + revealSec;
 
-    // If drawing phase is active
-    if (currentRef.current < total) {
-      const drawSec = targetSec * drawRatio;
-      const pxPerFrame = Math.max(1, Math.ceil(total / (drawSec * 60)));
+    if (elapsed < teaserVal) {
+      // 1. Teaser Phase
+      if (!baseImgDrawnRef.current) {
+        const oCtx = offscreenCanvasRef.current.getContext('2d');
+        oCtx.fillStyle = paperColor;
+        oCtx.fillRect(0, 0, canvasWidth, canvasHeight);
 
-      let drawn = 0;
-      while (drawn < pxPerFrame && currentRef.current < total) {
-        const idx = currentRef.current;
-        const { x, y, alpha } = pixels[idx];
-        const jx = x + (Math.random() - 0.5) * 1.4;
-        const jy = y + (Math.random() - 0.5) * 1.4;
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(jx, jy, 0.55 + Math.random() * 0.6, 0, Math.PI * 2);
-        ctx.fillStyle   = pencilColor;
-        ctx.globalAlpha = Math.min(0.95, Math.max(0.04, alpha * (0.55 + Math.random() * 0.45)));
-        ctx.fill();
-        ctx.restore();
-        currentRef.current++;
-        drawn++;
-        if (drawn % 12 === 0) {
-          const rect = canvas.getBoundingClientRect();
-          setPencilPos({
-            x: rect.left + x * (rect.width  / canvasWidth),
-            y: rect.top  + y * (rect.height / canvasHeight),
-          });
+        if (teaserStyle === 'completed') {
+          for (let i = 0; i < total; i++) {
+            const { x, y, alpha } = pixels[i];
+            const jx = x + (Math.random() - 0.5) * 1.4;
+            const jy = y + (Math.random() - 0.5) * 1.4;
+            oCtx.save();
+            oCtx.beginPath();
+            oCtx.arc(jx, jy, 0.55 + Math.random() * 0.6, 0, Math.PI * 2);
+            oCtx.fillStyle   = pencilColor;
+            oCtx.globalAlpha = Math.min(0.95, Math.max(0.04, alpha * (0.55 + Math.random() * 0.45)));
+            oCtx.fill();
+            oCtx.restore();
+          }
+        } else if (teaserStyle === 'color' && image) {
+          const { drawX, drawY, drawW, drawH } = fitImage(image, canvasWidth, canvasHeight);
+          oCtx.drawImage(image, drawX, drawY, drawW, drawH);
         }
+        baseImgDrawnRef.current = true;
       }
-      const pct = Math.min(99, (currentRef.current / total) * 100 * drawRatio);
+
+      ctx.drawImage(offscreenCanvasRef.current, 0, 0);
+      setPencilVisible(false);
+
+      const pct = Math.min(99, (elapsed / totalDuration) * 100);
       onProgress(pct);
 
-      if (currentRef.current >= total) {
-        setPencilVisible(false);
-        revealStartRef.current = performance.now();
+      if (hookTextEnabled && hookText && elapsed < hookTextDuration) {
+        drawTextHook(ctx, hookText, canvasWidth, canvasHeight, hookTextPosition);
+      }
+      rafRef.current = requestAnimationFrame(animate);
+    } else if (elapsed < teaserVal + drawSec) {
+      // 2. Drawing Phase
+      const drawElapsed = elapsed - teaserVal;
+      if (!drawingInitializedRef.current) {
+        const oCtx = offscreenCanvasRef.current.getContext('2d');
+        oCtx.fillStyle = paperColor;
+        oCtx.fillRect(0, 0, canvasWidth, canvasHeight);
+        currentRef.current = 0;
+        drawingInitializedRef.current = true;
+        setPencilVisible(true);
+      }
+
+      const t = Math.min(1.0, drawElapsed / drawSec);
+      let p = t; // default linear
+      if (speedCurve === 'fast-start') {
+        p = 1 - Math.pow(1 - t, 3); // ease-out cubic
+      } else if (speedCurve === 'waves') {
+        p = t + 0.08 * Math.sin(t * Math.PI * 4);
+        p = Math.min(1.0, Math.max(0.0, p));
+      }
+
+      const targetIdx = Math.min(total, Math.floor(p * total));
+      const oCtx = offscreenCanvasRef.current.getContext('2d');
+      let lastX = 0, lastY = 0;
+
+      for (let i = currentRef.current; i < targetIdx; i++) {
+        const { x, y, alpha } = pixels[i];
+        const jx = x + (Math.random() - 0.5) * 1.4;
+        const jy = y + (Math.random() - 0.5) * 1.4;
+        oCtx.save();
+        oCtx.beginPath();
+        oCtx.arc(jx, jy, 0.55 + Math.random() * 0.6, 0, Math.PI * 2);
+        oCtx.fillStyle   = pencilColor;
+        oCtx.globalAlpha = Math.min(0.95, Math.max(0.04, alpha * (0.55 + Math.random() * 0.45)));
+        oCtx.fill();
+        oCtx.restore();
+        lastX = x;
+        lastY = y;
+      }
+
+      if (targetIdx > currentRef.current && lastX > 0) {
+        const rect = canvas.getBoundingClientRect();
+        setPencilPos({
+          x: rect.left + lastX * (rect.width  / canvasWidth),
+          y: rect.top  + lastY * (rect.height / canvasHeight),
+        });
+      }
+      currentRef.current = targetIdx;
+
+      // Copy offscreen state onto onscreen
+      ctx.drawImage(offscreenCanvasRef.current, 0, 0);
+
+      const pct = Math.min(99, (teaserVal + drawElapsed) / totalDuration * 100);
+      onProgress(pct);
+
+      if (hookTextEnabled && hookText && elapsed < hookTextDuration) {
+        drawTextHook(ctx, hookText, canvasWidth, canvasHeight, hookTextPosition);
       }
       rafRef.current = requestAnimationFrame(animate);
     } else if (colorRevealEnabled && image) {
-      // Color reveal phase: fade in original color photo
-      const revealSec = targetSec * (1.0 - drawRatio);
-      if (!revealStartRef.current) revealStartRef.current = performance.now();
+      // 3. Reveal Phase
+      const revealElapsed = elapsed - teaserVal - drawSec;
+      const revealProgress = Math.min(1.0, revealElapsed / (revealSec || 1));
+      setPencilVisible(false);
 
-      const elapsed = (performance.now() - revealStartRef.current) / 1000;
-      const revealProgress = Math.min(1.0, elapsed / (revealSec || 1));
-
+      ctx.drawImage(offscreenCanvasRef.current, 0, 0);
       const { drawX, drawY, drawW, drawH } = fitImage(image, canvasWidth, canvasHeight);
 
       ctx.save();
@@ -130,8 +224,12 @@ const CanvasPreview = forwardRef(({
       ctx.drawImage(image, drawX, drawY, drawW, drawH);
       ctx.restore();
 
-      const pct = Math.min(100, (drawRatio + revealProgress * (1 - drawRatio)) * 100);
+      const pct = Math.min(100, (teaserVal + drawSec + revealElapsed) / totalDuration * 100);
       onProgress(pct);
+
+      if (hookTextEnabled && hookText && elapsed < hookTextDuration) {
+        drawTextHook(ctx, hookText, canvasWidth, canvasHeight, hookTextPosition);
+      }
 
       if (revealProgress >= 1.0) {
         isPlayingRef.current = false;
@@ -140,10 +238,16 @@ const CanvasPreview = forwardRef(({
       }
       rafRef.current = requestAnimationFrame(animate);
     } else {
+      setPencilVisible(false);
+      ctx.drawImage(offscreenCanvasRef.current, 0, 0);
       isPlayingRef.current = false;
       onProgress(100);
+
+      if (hookTextEnabled && hookText && elapsed < hookTextDuration) {
+        drawTextHook(ctx, hookText, canvasWidth, canvasHeight, hookTextPosition);
+      }
     }
-  }, [speed, onProgress, pencilColor, colorRevealEnabled, image, canvasWidth, canvasHeight]); // eslint-disable-line
+  }, [speed, onProgress, pencilColor, colorRevealEnabled, image, canvasWidth, canvasHeight, teaserStyle, teaserDuration, hookTextEnabled, hookText, hookTextPosition, hookTextDuration, speedCurve, paperColor]); // eslint-disable-line
 
   // ── Command handler ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -151,6 +255,7 @@ const CanvasPreview = forwardRef(({
 
     if (command === 'play') {
       isPlayingRef.current = true;
+      lastFrameTimeRef.current = performance.now();
       setPencilVisible(true);
       rafRef.current = requestAnimationFrame(animate);
     }
@@ -164,8 +269,11 @@ const CanvasPreview = forwardRef(({
     if (command === 'reset') {
       isPlayingRef.current = false;
       cancelAnimationFrame(rafRef.current);
-      currentRef.current = 0;
-      revealStartRef.current = null;
+      currentRef.current           = 0;
+      accumulatedTimeRef.current   = 0;
+      lastFrameTimeRef.current     = 0;
+      drawingInitializedRef.current = false;
+      baseImgDrawnRef.current      = false;
       setPencilVisible(false);
       clearCanvas();
       onProgress(0);

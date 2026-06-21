@@ -36,6 +36,16 @@ const HomePage = () => {
   const [theme,              setTheme]              = useState('cream');
   const [colorReveal,        setColorReveal]        = useState(false);
 
+  // YouTube Shorts Retention Boosters States
+  const [drawingStyle,       setDrawingStyle]       = useState('outline-first');
+  const [teaserStyle,        setTeaserStyle]        = useState('completed');
+  const [teaserDuration,     setTeaserDuration]     = useState(1.0);
+  const [hookTextEnabled,    setHookTextEnabled]    = useState(true);
+  const [hookText,           setHookText]           = useState('Wait for the end... 🤫');
+  const [hookTextPosition,   setHookTextPosition]   = useState('top');
+  const [hookTextDuration,   setHookTextDuration]   = useState(2.0);
+  const [speedCurve,         setSpeedCurve]         = useState('fast-start');
+
   // Derive theme background colors and chalk/pencil defaults
   const paperColor = theme === 'chalkboard' ? '#121214' : theme === 'white' ? '#ffffff' : '#fef8f0';
   const defaultPencilColor = theme === 'chalkboard' ? '#eef2f6' : '#1a0a02';
@@ -63,8 +73,8 @@ const HomePage = () => {
     });
   };
 
-  // Re-process all images in the queue when resolution or background style changes
-  const reprocessAllImages = useCallback((ratio, thm) => {
+  // Re-process all images in the queue when resolution, background style, or drawing style changes
+  const reprocessAllImages = useCallback((ratio, thm, style) => {
     const { width, height } = getDimensions(ratio);
     const paper = thm === 'chalkboard' ? '#121214' : thm === 'white' ? '#ffffff' : '#fef8f0';
     const isChalk = thm === 'chalkboard';
@@ -74,7 +84,7 @@ const HomePage = () => {
         URL.revokeObjectURL(img.mp4Download.url);
       }
       const { imageData } = convertToSketch(img.imageObj, width, height, paper, isChalk);
-      const pixels = generateInkPixels(imageData, width, height, 240, isChalk);
+      const pixels = generateInkPixels(imageData, width, height, 240, isChalk, style);
       return {
         ...img,
         pixels,
@@ -88,10 +98,10 @@ const HomePage = () => {
   // Trigger re-processing on settings adjustment
   useEffect(() => {
     if (images.length === 0) return;
-    reprocessAllImages(aspectRatio, theme);
-  }, [aspectRatio, theme, reprocessAllImages]);
+    reprocessAllImages(aspectRatio, theme, drawingStyle);
+  }, [aspectRatio, theme, drawingStyle, reprocessAllImages]);
 
-  // Discard MP4 download links if line color alone changes (to force new export)
+  // Discard MP4 download links if parameters change (to force new export)
   useEffect(() => {
     setImages(prev => prev.map(img => {
       if (img.mp4Download) {
@@ -100,7 +110,7 @@ const HomePage = () => {
       }
       return img;
     }));
-  }, [pencilColor]);
+  }, [pencilColor, teaserStyle, teaserDuration, hookTextEnabled, hookText, hookTextPosition, hookTextDuration, speedCurve]);
 
   // Derive active image
   const activeImage = activeIndex !== -1 ? images[activeIndex] : null;
@@ -117,7 +127,7 @@ const HomePage = () => {
     // Pre-calculate sketch pixels on upload
     const processedItems = newItems.map(item => {
       const { imageData } = convertToSketch(item.imageObj, canvasWidth, canvasHeight, paperColor, isChalk);
-      const pixels = generateInkPixels(imageData, canvasWidth, canvasHeight, 240, isChalk);
+      const pixels = generateInkPixels(imageData, canvasWidth, canvasHeight, 240, isChalk, drawingStyle);
       return {
         ...item,
         pixels,
@@ -134,7 +144,7 @@ const HomePage = () => {
     });
     // Set active image to the first uploaded one if none was active
     setActiveIndex(prevIndex => (prevIndex === -1 ? 0 : prevIndex));
-  }, [canvasWidth, canvasHeight, paperColor, theme]);
+  }, [canvasWidth, canvasHeight, paperColor, theme, drawingStyle]);
 
   const selectImage = (index) => {
     setIsPlaying(false);
@@ -229,6 +239,16 @@ const HomePage = () => {
       img.imageObj,
       (p) => {
         setImages(prev => prev.map(item => item.id === img.id ? { ...item, exportProgress: p } : item));
+      },
+      null, // onFrameDrawn
+      {
+        teaserStyle,
+        teaserDuration,
+        hookTextEnabled,
+        hookText,
+        hookTextPosition,
+        hookTextDuration,
+        speedCurve,
       }
     ).then(mp4Blob => {
       const url = URL.createObjectURL(mp4Blob);
@@ -535,6 +555,235 @@ const HomePage = () => {
                 </div>
 
               </div>
+
+              {/* 📈 YouTube Shorts Retention Boosters */}
+              <div style={{ marginTop: '24px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '20px' }}>
+                <h4 style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--accent-secondary)', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  📈 YouTube Shorts Retention Boosters
+                </h4>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px' }}>
+                  
+                  {/* Drawing Stroke Style */}
+                  <div>
+                    <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
+                      Pencil Stroke Pattern
+                    </label>
+                    <select
+                      value={drawingStyle}
+                      onChange={(e) => setDrawingStyle(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px',
+                        fontSize: '0.82rem',
+                        background: '#1a1a20',
+                        border: '1px solid var(--border-glass)',
+                        borderRadius: '8px',
+                        color: '#fff',
+                        outline: 'none',
+                      }}
+                    >
+                      <option value="outline-first">Outline First (Human-like) ⭐</option>
+                      <option value="center-out">Center Outward (Spiral)</option>
+                      <option value="organic">Organic Scatter (Magical)</option>
+                      <option value="printer-scan">Printer Sweep (Classic)</option>
+                    </select>
+                    <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '4px', lineHeight: 1.4 }}>
+                      ⭐ <strong>Outline First</strong> draws recognizable contours in the first 0.5s to hook scrolling viewers.
+                    </p>
+                  </div>
+
+                  {/* Teaser Style */}
+                  <div>
+                    <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
+                      First-Second Visual Teaser
+                    </label>
+                    <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                      {[
+                        { id: 'none', label: 'None' },
+                        { id: 'completed', label: 'Sketch' },
+                        { id: 'color', label: 'Color' }
+                      ].map(t => (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => setTeaserStyle(t.id)}
+                          style={{
+                            flex: 1,
+                            padding: '6px 0',
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            borderRadius: '6px',
+                            background: teaserStyle === t.id ? 'var(--accent)' : 'rgba(255,255,255,0.03)',
+                            color: teaserStyle === t.id ? '#fff' : 'var(--text-primary)',
+                            border: teaserStyle === t.id ? '1px solid var(--accent)' : '1px solid var(--border-glass)',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {t.label}
+                        </button>
+                      ))}
+                    </div>
+                    {teaserStyle !== 'none' && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Duration:</span>
+                        <select
+                          value={teaserDuration}
+                          onChange={(e) => setTeaserDuration(parseFloat(e.target.value))}
+                          style={{
+                            padding: '3px 6px',
+                            fontSize: '0.72rem',
+                            background: '#1a1a20',
+                            border: '1px solid var(--border-glass)',
+                            borderRadius: '4px',
+                            color: '#fff',
+                          }}
+                        >
+                          <option value="0.5">0.5s</option>
+                          <option value="1.0">1.0s</option>
+                          <option value="1.5">1.5s</option>
+                          <option value="2.0">2.0s</option>
+                        </select>
+                      </div>
+                    )}
+                    <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '4px', lineHeight: 1.4 }}>
+                      Autoplays a completed flash of the artwork first so viewers know what they are waiting for.
+                    </p>
+                  </div>
+
+                  {/* Speed Pacing / Curve */}
+                  <div>
+                    <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
+                      Drawing Pacing (Pacing Curve)
+                    </label>
+                    <select
+                      value={speedCurve}
+                      onChange={(e) => setSpeedCurve(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px',
+                        fontSize: '0.82rem',
+                        background: '#1a1a20',
+                        border: '1px solid var(--border-glass)',
+                        borderRadius: '8px',
+                        color: '#fff',
+                        outline: 'none',
+                      }}
+                    >
+                      <option value="fast-start">Fast Start (Draws Outlines Fast) ⭐</option>
+                      <option value="linear">Steady Pacing (Linear)</option>
+                      <option value="waves">Organized Waves (Varying)</option>
+                    </select>
+                    <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '4px', lineHeight: 1.4 }}>
+                      ⭐ <strong>Fast Start</strong> triggers immediate rapid motion to keep eyes glued before slowing for details.
+                    </p>
+                  </div>
+
+                </div>
+
+                {/* Text Hook Sub-section */}
+                <div style={{ marginTop: '20px', borderTop: '1px dashed rgba(255,255,255,0.06)', paddingTop: '16px' }}>
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: 'pointer', userSelect: 'none', fontSize: '0.82rem', fontWeight: 600, marginBottom: '10px' }}>
+                    <input
+                      type="checkbox"
+                      checked={hookTextEnabled}
+                      onChange={(e) => setHookTextEnabled(e.target.checked)}
+                      style={{ width: '16px', height: '16px', accentColor: 'var(--accent)', cursor: 'pointer' }}
+                    />
+                    <span>📺 Add Text Hook Overlay (e.g. "Wait for the end... 🤫")</span>
+                  </label>
+
+                  {hookTextEnabled && (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
+                      <div>
+                        <label style={{ fontSize: '0.74rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                          Hook Message
+                        </label>
+                        <input
+                          type="text"
+                          value={hookText}
+                          onChange={(e) => setHookText(e.target.value)}
+                          style={{
+                            width: '100%',
+                            padding: '8px 12px',
+                            fontSize: '0.78rem',
+                            background: 'rgba(255,255,255,0.02)',
+                            border: '1px solid var(--border-glass)',
+                            borderRadius: '6px',
+                            color: '#fff',
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '0.74rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                          Overlay Position
+                        </label>
+                        <select
+                          value={hookTextPosition}
+                          onChange={(e) => setHookTextPosition(e.target.value)}
+                          style={{
+                            width: '100%',
+                            padding: '8px 12px',
+                            fontSize: '0.78rem',
+                            background: '#1a1a20',
+                            border: '1px solid var(--border-glass)',
+                            borderRadius: '6px',
+                            color: '#fff',
+                          }}
+                        >
+                          <option value="top">Top (15%)</option>
+                          <option value="center">Center (50%)</option>
+                          <option value="bottom">Bottom (80%)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '0.74rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                          Hook Duration
+                        </label>
+                        <select
+                          value={hookTextDuration}
+                          onChange={(e) => setHookTextDuration(parseFloat(e.target.value))}
+                          style={{
+                            width: '100%',
+                            padding: '8px 12px',
+                            fontSize: '0.78rem',
+                            background: '#1a1a20',
+                            border: '1px solid var(--border-glass)',
+                            borderRadius: '6px',
+                            color: '#fff',
+                          }}
+                        >
+                          <option value="1.0">First 1s</option>
+                          <option value="1.5">First 1.5s</option>
+                          <option value="2.0">First 2s</option>
+                          <option value="3.0">First 3s</option>
+                          <option value="4.0">First 4s</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Audio Tip Alert Banner */}
+                <div style={{
+                  marginTop: '20px',
+                  padding: '12px 16px',
+                  borderRadius: '10px',
+                  background: 'rgba(56, 189, 248, 0.05)',
+                  border: '1px solid rgba(56, 189, 248, 0.15)',
+                  fontSize: '0.78rem',
+                  color: 'var(--text-muted)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px'
+                }}>
+                  <span style={{ fontSize: '1.1rem' }}>💡</span>
+                  <p style={{ margin: 0, lineHeight: 1.5 }}>
+                    <strong>Pro-Tip:</strong> Shorts algorithm heavily prioritizes trending sounds. Since exports are silent (no copyright strikes), add a trending YouTube sound/music overlay in the YouTube Shorts App after upload to boost reach by up to 500%!
+                  </p>
+                </div>
+              </div>
+
             </div>
           )}
 
@@ -714,6 +963,13 @@ const HomePage = () => {
               onReady={handleReady}
               onProgress={handleProgress}
               onCommandConsumed={handleCommandConsumed}
+              teaserStyle={teaserStyle}
+              teaserDuration={teaserDuration}
+              hookTextEnabled={hookTextEnabled}
+              hookText={hookText}
+              hookTextPosition={hookTextPosition}
+              hookTextDuration={hookTextDuration}
+              speedCurve={speedCurve}
             />
           </div>
 

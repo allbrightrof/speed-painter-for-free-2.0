@@ -67,6 +67,12 @@ const VideoConverterSection = () => {
   const defaultPencil = (t) => t === 'chalkboard' ? '#eef2f6' : '#1a0a02';
   const [pencilColor, setPencilColor] = useState(defaultPencil('cream'));
 
+  // ── Retention Booster Settings ──────────────────────────────────────────────
+  const [hookTextEnabled, setHookTextEnabled] = useState(true);
+  const [hookText,        setHookText]        = useState('Wait for the end... 🤯');
+  const [hookTextPosition, setHookTextPosition] = useState('top');
+  const [hookTextDuration, setHookTextDuration] = useState(2.0);
+
   const inputRef    = useRef(null);
   const prevResultUrl = useRef(null);
 
@@ -147,7 +153,15 @@ const VideoConverterSection = () => {
     try {
       const blob = await convertVideoToPainting(
         videoFile,
-        { theme, pencilColor, aspectRatio },
+        {
+          theme,
+          pencilColor,
+          aspectRatio,
+          hookTextEnabled,
+          hookText,
+          hookTextPosition,
+          hookTextDuration,
+        },
         (current, total, percent) => setProgress({ current, total, percent }),
         signalRef.current,
       );
@@ -458,6 +472,94 @@ const VideoConverterSection = () => {
                 ))}
               </div>
             </div>
+          </div>
+
+          {/* Hook Section (Retention Booster) */}
+          <div style={{ marginTop: '24px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '20px' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', userSelect: 'none', fontSize: '0.85rem', fontWeight: 700, marginBottom: '14px' }}>
+              <input
+                type="checkbox"
+                checked={hookTextEnabled}
+                onChange={(e) => setHookTextEnabled(e.target.checked)}
+                style={{ width: '18px', height: '18px', accentColor: 'var(--accent)', cursor: 'pointer' }}
+              />
+              <span>📈 Add Text Hook Overlay (Boosts Shorts Retention)</span>
+            </label>
+            
+            {hookTextEnabled && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+                <div>
+                  <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
+                    Hook Text
+                  </label>
+                  <input
+                    type="text"
+                    value={hookText}
+                    onChange={(e) => setHookText(e.target.value)}
+                    placeholder="e.g. Wait for the end... 🤫"
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      fontSize: '0.82rem',
+                      background: 'rgba(255,255,255,0.02)',
+                      border: '1px solid var(--border-glass)',
+                      borderRadius: '8px',
+                      color: '#fff',
+                      outline: 'none',
+                    }}
+                  />
+                </div>
+                
+                <div>
+                  <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
+                    Overlay Position
+                  </label>
+                  <select
+                    value={hookTextPosition}
+                    onChange={(e) => setHookTextPosition(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      fontSize: '0.82rem',
+                      background: '#1e1e24',
+                      border: '1px solid var(--border-glass)',
+                      borderRadius: '8px',
+                      color: '#fff',
+                      outline: 'none',
+                    }}
+                  >
+                    <option value="top">Top (15%)</option>
+                    <option value="center">Center (50%)</option>
+                    <option value="bottom">Bottom (80%)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
+                    Overlay Duration
+                  </label>
+                  <select
+                    value={hookTextDuration}
+                    onChange={(e) => setHookTextDuration(parseFloat(e.target.value))}
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      fontSize: '0.82rem',
+                      background: '#1e1e24',
+                      border: '1px solid var(--border-glass)',
+                      borderRadius: '8px',
+                      color: '#fff',
+                      outline: 'none',
+                    }}
+                  >
+                    <option value="1.0">First 1 second</option>
+                    <option value="2.0">First 2 seconds</option>
+                    <option value="3.0">First 3 seconds</option>
+                    <option value="4.0">First 4 seconds</option>
+                  </select>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Convert CTA */}

@@ -77,7 +77,7 @@ export function convertToSketch(img, W, H, paperColor = '#fef8f0', isChalkboard 
  * @param {boolean} [isChalkboard=false] — chalkboard flag
  * @returns {Array<{x, y, alpha}>}
  */
-export function generateInkPixels(imageData, W, H, threshold = 240, isChalkboard = false) {
+export function generateInkPixels(imageData, W, H, threshold = 240, isChalkboard = false, drawingStyle = 'outline-first') {
   const data   = imageData.data;
   const pixels = [];
 
@@ -85,29 +85,81 @@ export function generateInkPixels(imageData, W, H, threshold = 240, isChalkboard
     for (let x = 0; x < W; x++) {
       const r = data[(y * W + x) * 4]; // R channel (grayscale = R=G=B)
       
+      let intensity = 0;
       if (isChalkboard) {
         const whiteThreshold = 255 - threshold; // e.g. 15
         if (r > whiteThreshold) {
-          const alpha = Math.pow(r / 255, 0.7);
-          pixels.push({ x, y, alpha });
+          intensity = r / 255;
+          const alpha = Math.pow(intensity, 0.7);
+          pixels.push({ x, y, alpha, intensity });
         }
       } else {
         if (r < threshold) {
-          const alpha = Math.pow((threshold - r) / threshold, 0.7);
-          pixels.push({ x, y, alpha });
+          intensity = (threshold - r) / threshold;
+          const alpha = Math.pow(intensity, 0.7);
+          pixels.push({ x, y, alpha, intensity });
         }
       }
     }
   }
 
-  // Sort in horizontal band sweeps (alternating direction) — like an artist's hand
-  const BAND = 18;
-  pixels.sort((a, b) => {
-    const ba = Math.floor(a.y / BAND);
-    const bb = Math.floor(b.y / BAND);
-    if (ba !== bb) return ba - bb;
-    return ba % 2 === 0 ? a.x - b.x : b.x - a.x;
-  });
+  if (drawingStyle === 'printer-scan') {
+    // Sort in horizontal band sweeps (alternating direction)
+    const BAND = 18;
+    pixels.sort((a, b) => {
+      const ba = Math.floor(a.y / BAND);
+      const bb = Math.floor(b.y / BAND);
+      if (ba !== bb) return ba - bb;
+      return ba % 2 === 0 ? a.x - b.x : b.x - a.x;
+    });
+  } else if (drawingStyle === 'center-out') {
+    // Expand from the center outward
+    const cx = W / 2;
+    const cy = H / 2;
+    pixels.sort((a, b) => {
+      const distA = Math.hypot(a.x - cx, a.y - cy);
+      const distB = Math.hypot(b.x - cx, b.y - cy);
+      return distA - distB;
+    });
+  } else if (drawingStyle === 'organic') {
+    // Scattered random reveal (Fisher-Yates)
+    for (let i = pixels.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const temp = pixels[i];
+      pixels[i] = pixels[j];
+      pixels[j] = temp;
+    }
+  } else {
+    // 'outline-first' (Default / Recommended)
+    // Draw darkest/highest contrast contours first, then details, then shading
+    const tier1 = []; // Outlines (intensity >= 0.50)
+    const tier2 = []; // Details (0.25 <= intensity < 0.50)
+    const tier3 = []; // Shading (intensity < 0.25)
+    
+    for (const p of pixels) {
+      if (p.intensity >= 0.50) {
+        tier1.push(p);
+      } else if (p.intensity >= 0.25) {
+        tier2.push(p);
+      } else {
+        tier3.push(p);
+      }
+    }
+
+    const BAND = 18;
+    const sortBand = (a, b) => {
+      const ba = Math.floor(a.y / BAND);
+      const bb = Math.floor(b.y / BAND);
+      if (ba !== bb) return ba - bb;
+      return ba % 2 === 0 ? a.x - b.x : b.x - a.x;
+    };
+
+    tier1.sort(sortBand);
+    tier2.sort(sortBand);
+    tier3.sort(sortBand);
+
+    return [...tier1, ...tier2, ...tier3];
+  }
 
   return pixels;
 }
@@ -233,4 +285,67 @@ function colorDodge(base, blend, W, H) {
   }
 
   return new ImageData(out, W, H);
+}
+
+/**
+ * Draws a premium, high-retention text hook overlay on a canvas.
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {string} text
+ * @param {number} W canvas width
+ * @param {number} H canvas height
+ * @param {string} position 'top' | 'center' | 'bottom'
+ */
+export function drawTextHook(ctx, text, W, H, position = 'top') {
+  if (!text) return;
+  
+  ctx.save();
+  
+  // Choose font size based on height
+  const fontSize = Math.round(H * 0.05); // ~36px for 720p, ~64px for 1280p
+  ctx.font = `bold ${fontSize}px "Outfit", "Inter", "system-ui", -apple-system, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  
+  const textWidth = ctx.measureText(text).width;
+  const paddingX = fontSize * 1.0;
+  const paddingY = fontSize * 0.5;
+  const rectW = textWidth + paddingX * 2;
+  const rectH = fontSize + paddingY * 2;
+  
+  const rx = (W - rectW) / 2;
+  let ry = 0;
+  if (position === 'top') {
+    ry = H * 0.15 - rectH / 2;
+  } else if (position === 'center') {
+    ry = H * 0.5 - rectH / 2;
+  } else {
+    ry = H * 0.80 - rectH / 2;
+  }
+  
+  // Background pill: dark glassmorphism look
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+  ctx.beginPath();
+  if (ctx.roundRect) {
+    ctx.roundRect(rx, ry, rectW, rectH, rectH / 2);
+  } else {
+    ctx.rect(rx, ry, rectW, rectH);
+  }
+  ctx.fill();
+  
+  // Border: clean semi-transparent white border
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+  ctx.lineWidth = Math.max(1.5, fontSize * 0.05);
+  ctx.stroke();
+  
+  // Text shadow for high contrast
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+  ctx.shadowBlur = 8;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 2;
+  
+  // Text fill: pure white
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(text, W / 2, ry + rectH / 2);
+  
+  ctx.restore();
 }

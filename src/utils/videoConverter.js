@@ -16,6 +16,7 @@
  */
 
 import { Muxer, ArrayBufferTarget } from 'mp4-muxer';
+import { drawTextHook } from './sketchUtils';
 
 export const VIDEO_OUTPUT_FPS    = 24;          // cinematic feel, smaller file
 export const MAX_VIDEO_DURATION  = 60;          // seconds
@@ -245,6 +246,10 @@ export async function convertVideoToPainting(file, settings, onProgress, signal 
     theme       = 'cream',
     pencilColor = '#1a0a02',
     aspectRatio = '16:9',
+    hookTextEnabled = false,
+    hookText        = '',
+    hookTextPosition = 'top',
+    hookTextDuration = 2.0,
   } = settings;
 
   const paperColor   = theme === 'chalkboard' ? '#121214' : theme === 'white' ? '#ffffff' : '#fef8f0';
@@ -316,6 +321,11 @@ export async function convertVideoToPainting(file, settings, onProgress, signal 
 
       // Write painted frame back to canvas
       ctx.putImageData(colorized, 0, 0);
+
+      // Render text hook overlay if enabled
+      if (hookTextEnabled && hookText && (f / VIDEO_OUTPUT_FPS) < hookTextDuration) {
+        drawTextHook(ctx, hookText, W, H, hookTextPosition);
+      }
 
       // Encode as a VideoFrame
       const timestamp     = Math.round((f / VIDEO_OUTPUT_FPS) * TIMESCALE);
