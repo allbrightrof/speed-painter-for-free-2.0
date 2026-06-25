@@ -17,6 +17,7 @@
 
 import { Muxer, ArrayBufferTarget } from 'mp4-muxer';
 import { drawTextHook } from './sketchUtils';
+import { applyCartoonFilter } from './cartoonFilter';
 
 export const VIDEO_OUTPUT_FPS    = 24;          // cinematic feel, smaller file
 export const MAX_VIDEO_DURATION  = 60;          // seconds
@@ -243,6 +244,7 @@ export function estimateConversionTime(durationSec, W, H) {
  */
 export async function convertVideoToPainting(file, settings, onProgress, signal = {}) {
   const {
+    videoStyle  = 'pencil-sketch',
     theme       = 'cream',
     pencilColor = '#1a0a02',
     aspectRatio = '16:9',
@@ -250,6 +252,9 @@ export async function convertVideoToPainting(file, settings, onProgress, signal 
     hookText        = '',
     hookTextPosition = 'top',
     hookTextDuration = 2.0,
+    cartoonDetail    = 'medium',
+    cartoonVibrancy  = 'vibrant',
+    cartoonThickness = 'medium',
   } = settings;
 
   const paperColor   = theme === 'chalkboard' ? '#121214' : theme === 'white' ? '#ffffff' : '#fef8f0';
@@ -277,6 +282,9 @@ export async function convertVideoToPainting(file, settings, onProgress, signal 
     canvas.width  = W;
     canvas.height = H;
     const ctx = canvas.getContext('2d');
+
+    // Pre-allocate output buffer for cartoon style to avoid GC thrashing in the frame loop
+    const cartoonOutData = videoStyle === 'cartoon' ? ctx.createImageData(W, H) : null;
 
     // ── Muxer ────────────────────────────────────────────────────────────────
     const target = new ArrayBufferTarget();
@@ -316,11 +324,19 @@ export async function convertVideoToPainting(file, settings, onProgress, signal 
 
       // Get raw pixels, sketch them, colorize
       const rawData    = ctx.getImageData(0, 0, W, H);
-      const sketched   = sketchFrame(rawData, W, H, isChalkboard);
-      const colorized  = colorizeSketch(sketched, pencilColor, paperColor, isChalkboard);
-
-      // Write painted frame back to canvas
-      ctx.putImageData(colorized, 0, 0);
+      
+      if (videoStyle === 'cartoon') {
+        applyCartoonFilter(rawData, cartoonOutData, W, H, {
+          detail: cartoonDetail,
+          vibrancy: cartoonVibrancy,
+          thickness: cartoonThickness
+        });
+        ctx.putImageData(cartoonOutData, 0, 0);
+      } else {
+        const sketched   = sketchFrame(rawData, W, H, isChalkboard);
+        const colorized  = colorizeSketch(sketched, pencilColor, paperColor, isChalkboard);
+        ctx.putImageData(colorized, 0, 0);
+      }
 
       // Render text hook overlay if enabled
       if (hookTextEnabled && hookText && (f / VIDEO_OUTPUT_FPS) < hookTextDuration) {

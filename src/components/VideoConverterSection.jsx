@@ -73,6 +73,12 @@ const VideoConverterSection = () => {
   const [hookTextPosition, setHookTextPosition] = useState('top');
   const [hookTextDuration, setHookTextDuration] = useState(2.0);
 
+  // ── Cartoon Converter Settings ──────────────────────────────────────────────
+  const [videoStyle,       setVideoStyle]       = useState('pencil-sketch');
+  const [cartoonDetail,    setCartoonDetail]    = useState('medium');
+  const [cartoonVibrancy,  setCartoonVibrancy]  = useState('vibrant');
+  const [cartoonThickness, setCartoonThickness] = useState('medium');
+
   const inputRef    = useRef(null);
   const prevResultUrl = useRef(null);
 
@@ -154,6 +160,7 @@ const VideoConverterSection = () => {
       const blob = await convertVideoToPainting(
         videoFile,
         {
+          videoStyle,
           theme,
           pencilColor,
           aspectRatio,
@@ -161,6 +168,9 @@ const VideoConverterSection = () => {
           hookText,
           hookTextPosition,
           hookTextDuration,
+          cartoonDetail,
+          cartoonVibrancy,
+          cartoonThickness,
         },
         (current, total, percent) => setProgress({ current, total, percent }),
         signalRef.current,
@@ -387,8 +397,36 @@ const VideoConverterSection = () => {
       {videoInfo && !isConverting && !result && (
         <div className="glass-card" style={{ padding: '22px 24px' }}>
           <h3 style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            ⚙️ Painting Settings
+            ⚙️ Video Conversion Settings
           </h3>
+
+          {/* Video Style Selector */}
+          <div style={{ marginBottom: '22px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '16px' }}>
+            <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
+              Visual Style Effect
+            </label>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              {[
+                { id: 'pencil-sketch', label: 'Pencil Sketch', icon: '✏️' },
+                { id: 'cartoon', label: 'Cartoon Style', icon: '🎨' }
+              ].map((styleOpt) => (
+                <button
+                  key={styleOpt.id}
+                  onClick={() => setVideoStyle(styleOpt.id)}
+                  style={{
+                    flex: 1, padding: '10px 0', fontSize: '0.78rem', fontWeight: 600,
+                    borderRadius: '8px',
+                    background: videoStyle === styleOpt.id ? 'var(--accent)' : 'rgba(255,255,255,0.03)',
+                    color: videoStyle === styleOpt.id ? '#fff' : 'var(--text-primary)',
+                    border: videoStyle === styleOpt.id ? '1px solid var(--accent)' : '1px solid var(--border-glass)',
+                    cursor: 'pointer', transition: 'all 0.2s',
+                  }}
+                >
+                  {styleOpt.icon} {styleOpt.label}
+                </button>
+              ))}
+            </div>
+          </div>
 
           <div
             style={{
@@ -423,56 +461,139 @@ const VideoConverterSection = () => {
               </div>
             </div>
 
-            {/* Background Theme */}
-            <div>
-              <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
-                Background Theme
-              </label>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                {THEMES.map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => setTheme(t.id)}
-                    style={{
-                      flex: 1, padding: '8px 0', fontSize: '0.75rem', fontWeight: 600,
-                      borderRadius: '8px',
-                      background: theme === t.id ? 'var(--accent)' : 'rgba(255,255,255,0.03)',
-                      color: theme === t.id ? '#fff' : 'var(--text-primary)',
-                      border: theme === t.id ? '1px solid var(--accent)' : '1px solid var(--border-glass)',
-                      cursor: 'pointer', transition: 'all 0.2s',
-                    }}
-                  >
-                    {t.icon} {t.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+            {videoStyle === 'pencil-sketch' && (
+              <>
+                {/* Background Theme */}
+                <div>
+                  <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
+                    Background Theme
+                  </label>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    {THEMES.map((t) => (
+                      <button
+                        key={t.id}
+                        onClick={() => setTheme(t.id)}
+                        style={{
+                          flex: 1, padding: '8px 0', fontSize: '0.75rem', fontWeight: 600,
+                          borderRadius: '8px',
+                          background: theme === t.id ? 'var(--accent)' : 'rgba(255,255,255,0.03)',
+                          color: theme === t.id ? '#fff' : 'var(--text-primary)',
+                          border: theme === t.id ? '1px solid var(--accent)' : '1px solid var(--border-glass)',
+                          cursor: 'pointer', transition: 'all 0.2s',
+                        }}
+                      >
+                        {t.icon} {t.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-            {/* Pencil Color */}
-            <div>
-              <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
-                Pencil Color
-              </label>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                {pencilOptions.map((c) => (
-                  <button
-                    key={c.value}
-                    onClick={() => setPencilColor(c.value)}
-                    style={{
-                      flex: 1, padding: '8px 0', fontSize: '0.72rem', fontWeight: 700,
-                      borderRadius: '8px',
-                      background: pencilColor === c.value ? c.value : 'rgba(255,255,255,0.03)',
-                      color: pencilColor === c.value ? (theme === 'chalkboard' ? '#121214' : '#fff') : 'var(--text-primary)',
-                      border: `1px solid ${pencilColor === c.value ? c.value : 'var(--border-glass)'}`,
-                      cursor: 'pointer', transition: 'all 0.2s',
-                    }}
-                  >
-                    {c.name}
-                  </button>
-                ))}
+                {/* Pencil Color */}
+                <div>
+                  <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
+                    Pencil Color
+                  </label>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    {pencilOptions.map((c) => (
+                      <button
+                        key={c.value}
+                        onClick={() => setPencilColor(c.value)}
+                        style={{
+                          flex: 1, padding: '8px 0', fontSize: '0.72rem', fontWeight: 700,
+                          borderRadius: '8px',
+                          background: pencilColor === c.value ? c.value : 'rgba(255,255,255,0.03)',
+                          color: pencilColor === c.value ? (theme === 'chalkboard' ? '#121214' : '#fff') : 'var(--text-primary)',
+                          border: `1px solid ${pencilColor === c.value ? c.value : 'var(--border-glass)'}`,
+                          cursor: 'pointer', transition: 'all 0.2s',
+                        }}
+                      >
+                        {c.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          {videoStyle === 'cartoon' && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '20px', marginBottom: '20px' }}>
+              {/* Cartoon Detail */}
+              <div>
+                <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
+                  Color Detail
+                </label>
+                <select
+                  value={cartoonDetail}
+                  onChange={(e) => setCartoonDetail(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '9px 12px',
+                    fontSize: '0.8rem',
+                    background: '#1e1e24',
+                    border: '1px solid var(--border-glass)',
+                    borderRadius: '8px',
+                    color: '#fff',
+                    outline: 'none',
+                  }}
+                >
+                  <option value="low">Low (Cell-Shaded Retro)</option>
+                  <option value="medium">Medium (Classic Cartoon)</option>
+                  <option value="high">High (Soft Gradients)</option>
+                </select>
+              </div>
+
+              {/* Cartoon Thickness */}
+              <div>
+                <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
+                  Outline Thickness
+                </label>
+                <select
+                  value={cartoonThickness}
+                  onChange={(e) => setCartoonThickness(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '9px 12px',
+                    fontSize: '0.8rem',
+                    background: '#1e1e24',
+                    border: '1px solid var(--border-glass)',
+                    borderRadius: '8px',
+                    color: '#fff',
+                    outline: 'none',
+                  }}
+                >
+                  <option value="thin">Thin Outlines</option>
+                  <option value="medium">Medium Outlines</option>
+                  <option value="thick">Thick Outlines</option>
+                </select>
+              </div>
+
+              {/* Cartoon Saturation */}
+              <div>
+                <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
+                  Color Vibrancy
+                </label>
+                <select
+                  value={cartoonVibrancy}
+                  onChange={(e) => setCartoonVibrancy(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '9px 12px',
+                    fontSize: '0.8rem',
+                    background: '#1e1e24',
+                    border: '1px solid var(--border-glass)',
+                    borderRadius: '8px',
+                    color: '#fff',
+                    outline: 'none',
+                  }}
+                >
+                  <option value="normal">Normal Colors</option>
+                  <option value="vibrant">Vibrant Colors</option>
+                  <option value="intense">Intense Saturation</option>
+                </select>
               </div>
             </div>
-          </div>
+          )}
 
           {/* Hook Section (Retention Booster) */}
           <div style={{ marginTop: '24px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '20px' }}>
@@ -570,7 +691,7 @@ const VideoConverterSection = () => {
               onClick={handleConvert}
               style={{ padding: '15px 48px', fontSize: '1rem', display: 'inline-flex', alignItems: 'center', gap: '10px' }}
             >
-              🎨 Convert to Painting
+              {videoStyle === 'cartoon' ? '🎨 Convert to Cartoon Style' : '🎨 Convert to Painting'}
             </button>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '10px', lineHeight: 1.6 }}>
               Estimated: ~{formatDuration(estimatedSec)} for {totalFrames} frames · Runs entirely in your browser · Don't close the tab
@@ -597,7 +718,7 @@ const VideoConverterSection = () => {
             🖌️
           </div>
           <h3 style={{ fontWeight: 700, fontSize: '1.05rem', marginBottom: '6px' }}>
-            Painting your video...
+            {videoStyle === 'cartoon' ? 'Applying cartoon effect...' : 'Painting your video...'}
           </h3>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginBottom: '24px', lineHeight: 1.7 }}>
             Frame{' '}
@@ -650,7 +771,7 @@ const VideoConverterSection = () => {
             Conversion Complete!
           </h3>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '24px', lineHeight: 1.6 }}>
-            Your painted video is ready. Add music in your editor before uploading!
+            Your {videoStyle === 'cartoon' ? 'cartoon' : 'painted'} video is ready. Add music in your editor before uploading!
           </p>
           <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
             <a
@@ -667,7 +788,7 @@ const VideoConverterSection = () => {
                 gap: '8px',
               }}
             >
-              💾 Download Painted MP4
+              💾 Download {videoStyle === 'cartoon' ? 'Cartoon' : 'Painted'} MP4
             </a>
             <button
               onClick={handleConvertAgain}
