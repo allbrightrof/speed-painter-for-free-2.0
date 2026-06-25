@@ -22,7 +22,6 @@ import { applyCartoonFilter } from './cartoonFilter';
 export const VIDEO_OUTPUT_FPS    = 24;          // cinematic feel, smaller file
 export const MAX_VIDEO_DURATION  = 60;          // seconds
 const TIMESCALE                  = 1_000_000;   // microseconds
-const BLUR_RADIUS                = 9;
 
 // ── Output dimensions ─────────────────────────────────────────────────────────
 
@@ -169,15 +168,74 @@ function colorDodge(base, blend, W, H) {
   return new ImageData(o, W, H);
 }
 
+/** Detail Edge Boost - blends local forward-difference gradients */
+function applyEdgeBoost(grayData, sketchData, W, H, strength) {
+  const g = grayData.data;
+  const s = sketchData.data;
+  const out = new Uint8ClampedArray(s.length);
+
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const idx = (y * W + x) * 4;
+      const val = g[idx];
+
+      const nx = x + 1 < W ? x + 1 : W - 1;
+      const ny = y + 1 < H ? y + 1 : H - 1;
+
+      const valR = g[(y * W + nx) * 4];
+      const valB = g[(ny * W + x) * 4];
+
+      const grad = Math.abs(val - valR) + Math.abs(val - valB);
+      const edgeFactor = Math.min(1.0, (grad / 255) * 1.5 * strength);
+      const edgeVal = 1.0 - edgeFactor;
+
+      for (let c = 0; c < 3; c++) {
+        const sv = s[idx + c];
+        out[idx + c] = Math.round(sv * edgeVal);
+      }
+      out[idx + 3] = 255;
+    }
+  }
+  return new ImageData(out, W, H);
+}
+
+/** Contrast/Power-Law mapping */
+function applyContrast(sketchData, factor) {
+  const d = sketchData.data;
+  const out = new Uint8ClampedArray(d.length);
+  for (let i = 0; i < d.length; i += 4) {
+    for (let c = 0; c < 3; c++) {
+      const v = d[i + c] / 255;
+      out[i + c] = Math.round(Math.pow(v, factor) * 255);
+    }
+    out[i + 3] = 255;
+  }
+  return new ImageData(out, sketchData.width, sketchData.height);
+}
+
 /**
  * Apply pencil-sketch effect to an ImageData snapshot of a video frame.
  * Returns the sketch ImageData (grayscale lines).
  */
-function sketchFrame(imageData, W, H, isChalkboard) {
+function sketchFrame(imageData, W, H, isChalkboard, settings = {}) {
+  const {
+    blurRadius = 9,
+    edgeBoost = 20,
+    sketchContrast = 100
+  } = settings;
+
   const gray   = toGrayscale(imageData);
   const inv    = invertImage(gray);
-  const blur   = gaussianBlur(inv, W, H, BLUR_RADIUS);
-  const sketch = colorDodge(gray, blur, W, H);
+  const blur   = gaussianBlur(inv, W, H, blurRadius);
+  let sketch = colorDodge(gray, blur, W, H);
+
+  if (edgeBoost > 0) {
+    sketch = applyEdgeBoost(gray, sketch, W, H, edgeBoost / 100);
+  }
+
+  if (sketchContrast !== 100) {
+    sketch = applyContrast(sketch, sketchContrast / 100);
+  }
 
   if (isChalkboard) {
     const d = sketch.data;
@@ -255,6 +313,9 @@ export async function convertVideoToPainting(file, settings, onProgress, signal 
     cartoonDetail    = 'medium',
     cartoonVibrancy  = 'vibrant',
     cartoonThickness = 'medium',
+    blurRadius = 9,
+    edgeBoost = 20,
+    sketchContrast = 100,
   } = settings;
 
   const paperColor   = theme === 'chalkboard' ? '#121214' : theme === 'white' ? '#ffffff' : '#fef8f0';
@@ -333,7 +394,7 @@ export async function convertVideoToPainting(file, settings, onProgress, signal 
         });
         ctx.putImageData(cartoonOutData, 0, 0);
       } else {
-        const sketched   = sketchFrame(rawData, W, H, isChalkboard);
+        const sketched   = sketchFrame(rawData, W, H, isChalkboard, { blurRadius, edgeBoost, sketchContrast });
         const colorized  = colorizeSketch(sketched, pencilColor, paperColor, isChalkboard);
         ctx.putImageData(colorized, 0, 0);
       }

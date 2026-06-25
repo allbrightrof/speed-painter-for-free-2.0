@@ -36,6 +36,11 @@ const HomePage = () => {
   const [theme,              setTheme]              = useState('cream');
   const [colorReveal,        setColorReveal]        = useState(false);
 
+  // Pencil Detail Settings
+  const [blurRadius,         setBlurRadius]         = useState(9);
+  const [edgeBoost,          setEdgeBoost]          = useState(20);
+  const [sketchContrast,     setSketchContrast]     = useState(100);
+
   // YouTube Shorts Retention Boosters States
   const [drawingStyle,       setDrawingStyle]       = useState('outline-first');
   const [teaserStyle,        setTeaserStyle]        = useState('completed');
@@ -74,7 +79,7 @@ const HomePage = () => {
   };
 
   // Re-process all images in the queue when resolution, background style, or drawing style changes
-  const reprocessAllImages = useCallback((ratio, thm, style) => {
+  const reprocessAllImages = useCallback((ratio, thm, style, bRadius, eBoost, contrast) => {
     const { width, height } = getDimensions(ratio);
     const paper = thm === 'chalkboard' ? '#121214' : thm === 'white' ? '#ffffff' : '#fef8f0';
     const isChalk = thm === 'chalkboard';
@@ -83,7 +88,11 @@ const HomePage = () => {
       if (img.mp4Download?.url) {
         URL.revokeObjectURL(img.mp4Download.url);
       }
-      const { imageData } = convertToSketch(img.imageObj, width, height, paper, isChalk);
+      const { imageData } = convertToSketch(img.imageObj, width, height, paper, isChalk, {
+        blurRadius: bRadius,
+        edgeBoost: eBoost,
+        sketchContrast: contrast
+      });
       const pixels = generateInkPixels(imageData, width, height, 240, isChalk, style);
       return {
         ...img,
@@ -98,8 +107,8 @@ const HomePage = () => {
   // Trigger re-processing on settings adjustment
   useEffect(() => {
     if (images.length === 0) return;
-    reprocessAllImages(aspectRatio, theme, drawingStyle);
-  }, [aspectRatio, theme, drawingStyle, reprocessAllImages]);
+    reprocessAllImages(aspectRatio, theme, drawingStyle, blurRadius, edgeBoost, sketchContrast);
+  }, [aspectRatio, theme, drawingStyle, blurRadius, edgeBoost, sketchContrast, reprocessAllImages]);
 
   // Discard MP4 download links if parameters change (to force new export)
   useEffect(() => {
@@ -110,7 +119,7 @@ const HomePage = () => {
       }
       return img;
     }));
-  }, [pencilColor, teaserStyle, teaserDuration, hookTextEnabled, hookText, hookTextPosition, hookTextDuration, speedCurve]);
+  }, [pencilColor, teaserStyle, teaserDuration, hookTextEnabled, hookText, hookTextPosition, hookTextDuration, speedCurve, blurRadius, edgeBoost, sketchContrast]);
 
   // Derive active image
   const activeImage = activeIndex !== -1 ? images[activeIndex] : null;
@@ -126,7 +135,11 @@ const HomePage = () => {
 
     // Pre-calculate sketch pixels on upload
     const processedItems = newItems.map(item => {
-      const { imageData } = convertToSketch(item.imageObj, canvasWidth, canvasHeight, paperColor, isChalk);
+      const { imageData } = convertToSketch(item.imageObj, canvasWidth, canvasHeight, paperColor, isChalk, {
+        blurRadius,
+        edgeBoost,
+        sketchContrast
+      });
       const pixels = generateInkPixels(imageData, canvasWidth, canvasHeight, 240, isChalk, drawingStyle);
       return {
         ...item,
@@ -144,7 +157,7 @@ const HomePage = () => {
     });
     // Set active image to the first uploaded one if none was active
     setActiveIndex(prevIndex => (prevIndex === -1 ? 0 : prevIndex));
-  }, [canvasWidth, canvasHeight, paperColor, theme, drawingStyle]);
+  }, [canvasWidth, canvasHeight, paperColor, theme, drawingStyle, blurRadius, edgeBoost, sketchContrast]);
 
   const selectImage = (index) => {
     setIsPlaying(false);
@@ -554,6 +567,88 @@ const HomePage = () => {
                   </label>
                 </div>
 
+              </div>
+
+              {/* 🖌️ Pencil Detail Settings */}
+              <div style={{ marginTop: '20px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '20px' }}>
+                <h4 style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--accent-secondary)', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  🖌️ Pencil Detail Settings
+                </h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px' }}>
+                  
+                  {/* Line Weight */}
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                        Pencil Line Weight
+                      </label>
+                      <span style={{ fontSize: '0.78rem', color: 'var(--accent)', fontWeight: 700 }}>
+                        {blurRadius} (px)
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="2"
+                      max="20"
+                      step="1"
+                      value={blurRadius}
+                      onChange={(e) => setBlurRadius(parseInt(e.target.value))}
+                      style={{ width: '100%', accentColor: 'var(--accent)', cursor: 'pointer' }}
+                    />
+                    <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '4px', lineHeight: 1.4 }}>
+                      Thicker outlines (higher) vs. finer details (lower; e.g. 3-4 for sports clips/football).
+                    </p>
+                  </div>
+
+                  {/* Detail Edge Boost */}
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                        Detail Edge Boost
+                      </label>
+                      <span style={{ fontSize: '0.78rem', color: 'var(--accent)', fontWeight: 700 }}>
+                        {edgeBoost}%
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      step="5"
+                      value={edgeBoost}
+                      onChange={(e) => setEdgeBoost(parseInt(e.target.value))}
+                      style={{ width: '100%', accentColor: 'var(--accent)', cursor: 'pointer' }}
+                    />
+                    <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '4px', lineHeight: 1.4 }}>
+                      Enhances outlines of small fast-moving objects (like footballs) so they remain visible.
+                    </p>
+                  </div>
+
+                  {/* Pencil Contrast / Darkness */}
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                        Pencil Contrast
+                      </label>
+                      <span style={{ fontSize: '0.78rem', color: 'var(--accent)', fontWeight: 700 }}>
+                        {sketchContrast}%
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="100"
+                      max="300"
+                      step="10"
+                      value={sketchContrast}
+                      onChange={(e) => setSketchContrast(parseInt(e.target.value))}
+                      style={{ width: '100%', accentColor: 'var(--accent)', cursor: 'pointer' }}
+                    />
+                    <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '4px', lineHeight: 1.4 }}>
+                      Increases the darkness and definition of hand-drawn strokes.
+                    </p>
+                  </div>
+
+                </div>
               </div>
 
               {/* 📈 YouTube Shorts Retention Boosters */}

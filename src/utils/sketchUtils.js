@@ -31,7 +31,13 @@
  * @param {boolean} isChalkboard whether it is chalkboard mode (inverted colors)
  * @returns {{ sketchCanvas, imageData }}
  */
-export function convertToSketch(img, W, H, paperColor = '#fef8f0', isChalkboard = false) {
+export function convertToSketch(img, W, H, paperColor = '#fef8f0', isChalkboard = false, settings = {}) {
+  const {
+    blurRadius = 9,
+    edgeBoost = 20,
+    sketchContrast = 100
+  } = settings;
+
   const tmp    = makeCanvas(W, H);
   const tmpCtx = tmp.getContext('2d');
 
@@ -44,8 +50,18 @@ export function convertToSketch(img, W, H, paperColor = '#fef8f0', isChalkboard 
   const src  = tmpCtx.getImageData(0, 0, W, H);
   const gray = toGrayscale(src);              // step 1
   const inv  = invertImage(gray);             // step 2
-  const blur = gaussianBlur(inv, W, H, 9);   // step 3  (radius 9 = medium line weight)
-  const sketch = colorDodge(gray, blur, W, H); // step 4
+  const blur = gaussianBlur(inv, W, H, blurRadius);   // step 3: radius controls line weight
+  let sketch = colorDodge(gray, blur, W, H); // step 4
+
+  // step 5: Apply detail edge boost (Gradient/Outline) if requested
+  if (edgeBoost > 0) {
+    sketch = applyEdgeBoost(gray, sketch, W, H, edgeBoost / 100);
+  }
+
+  // step 6: Apply contrast enhancement (power-law curve)
+  if (sketchContrast !== 100) {
+    sketch = applyContrast(sketch, sketchContrast / 100);
+  }
 
   if (isChalkboard) {
     const d = sketch.data;
@@ -285,6 +301,51 @@ function colorDodge(base, blend, W, H) {
   }
 
   return new ImageData(out, W, H);
+}
+
+/** Detail Edge Boost - blends local forward-difference gradients */
+function applyEdgeBoost(grayData, sketchData, W, H, strength) {
+  const g = grayData.data;
+  const s = sketchData.data;
+  const out = new Uint8ClampedArray(s.length);
+
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const idx = (y * W + x) * 4;
+      const val = g[idx];
+
+      const nx = x + 1 < W ? x + 1 : W - 1;
+      const ny = y + 1 < H ? y + 1 : H - 1;
+
+      const valR = g[(y * W + nx) * 4];
+      const valB = g[(ny * W + x) * 4];
+
+      const grad = Math.abs(val - valR) + Math.abs(val - valB);
+      const edgeFactor = Math.min(1.0, (grad / 255) * 1.5 * strength);
+      const edgeVal = 1.0 - edgeFactor;
+
+      for (let c = 0; c < 3; c++) {
+        const sv = s[idx + c];
+        out[idx + c] = Math.round(sv * edgeVal);
+      }
+      out[idx + 3] = 255;
+    }
+  }
+  return new ImageData(out, W, H);
+}
+
+/** Contrast/Power-Law mapping */
+function applyContrast(sketchData, factor) {
+  const d = sketchData.data;
+  const out = new Uint8ClampedArray(d.length);
+  for (let i = 0; i < d.length; i += 4) {
+    for (let c = 0; c < 3; c++) {
+      const v = d[i + c] / 255;
+      out[i + c] = Math.round(Math.pow(v, factor) * 255);
+    }
+    out[i + 3] = 255;
+  }
+  return new ImageData(out, sketchData.width, sketchData.height);
 }
 
 /**

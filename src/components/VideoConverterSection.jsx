@@ -79,6 +79,11 @@ const VideoConverterSection = () => {
   const [cartoonVibrancy,  setCartoonVibrancy]  = useState('vibrant');
   const [cartoonThickness, setCartoonThickness] = useState('medium');
 
+  // ── Pencil Sketch Detail Settings ───────────────────────────────────────────
+  const [blurRadius,       setBlurRadius]       = useState(9);
+  const [edgeBoost,        setEdgeBoost]        = useState(20);
+  const [sketchContrast,   setSketchContrast]   = useState(100);
+
   const inputRef    = useRef(null);
   const prevResultUrl = useRef(null);
 
@@ -171,6 +176,9 @@ const VideoConverterSection = () => {
           cartoonDetail,
           cartoonVibrancy,
           cartoonThickness,
+          blurRadius,
+          edgeBoost,
+          sketchContrast,
         },
         (current, total, percent) => setProgress({ current, total, percent }),
         signalRef.current,
@@ -510,6 +518,87 @@ const VideoConverterSection = () => {
                         {c.name}
                       </button>
                     ))}
+                  </div>
+                </div>
+
+                {/* Pencil Detail Settings Row */}
+                <div style={{ gridColumn: '1 / -1', marginTop: '10px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '16px' }}>
+                  <h4 style={{ fontWeight: 700, fontSize: '0.82rem', color: 'var(--accent-secondary)', marginBottom: '12px' }}>
+                    🖌️ Fine Pencil Detail Settings
+                  </h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px' }}>
+                    
+                    {/* Line Weight */}
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                        <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                          Pencil Line Weight
+                        </label>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--accent)', fontWeight: 700 }}>
+                          {blurRadius} (px)
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="2"
+                        max="20"
+                        step="1"
+                        value={blurRadius}
+                        onChange={(e) => setBlurRadius(parseInt(e.target.value))}
+                        style={{ width: '100%', accentColor: 'var(--accent)', cursor: 'pointer' }}
+                      />
+                      <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '4px', lineHeight: 1.4 }}>
+                        Thicker outlines (higher) vs. finer details (lower; e.g. 3-4 for sports/balls).
+                      </p>
+                    </div>
+
+                    {/* Detail Edge Boost */}
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                        <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                          Detail Edge Boost
+                        </label>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--accent)', fontWeight: 700 }}>
+                          {edgeBoost}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        step="5"
+                        value={edgeBoost}
+                        onChange={(e) => setEdgeBoost(parseInt(e.target.value))}
+                        style={{ width: '100%', accentColor: 'var(--accent)', cursor: 'pointer' }}
+                      />
+                      <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '4px', lineHeight: 1.4 }}>
+                        Highlights fine borders of small fast-moving objects (like footballs).
+                      </p>
+                    </div>
+
+                    {/* Pencil Contrast / Darkness */}
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                        <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                          Pencil Contrast
+                        </label>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--accent)', fontWeight: 700 }}>
+                          {sketchContrast}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="100"
+                        max="300"
+                        step="10"
+                        value={sketchContrast}
+                        onChange={(e) => setSketchContrast(parseInt(e.target.value))}
+                        style={{ width: '100%', accentColor: 'var(--accent)', cursor: 'pointer' }}
+                      />
+                      <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '4px', lineHeight: 1.4 }}>
+                        Makes hand-drawn strokes darker and bolder.
+                      </p>
+                    </div>
                   </div>
                 </div>
               </>
